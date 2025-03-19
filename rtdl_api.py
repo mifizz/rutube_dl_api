@@ -1,4 +1,5 @@
 import requests, re, subprocess, ffmpeg
+from typing import Literal
 
 # log modes
 # i will update those sometime
@@ -134,19 +135,52 @@ def get_vinfo_field(vinfo: dict, path: str) -> any:
 def get_master_playlist(vinfo: dict) -> str:
     return get_vinfo_field(vinfo, path="video_balancer.default")
 
-def download_video(stream: dict) -> int:
-    log(f"Downloading video in {in_stream["resolution"]} resolution...")
+# downloads provided stream, not to be confused with download_video()!
+def download_stream(stream: dict, title: str) -> int:
+    log(f"Downloading video in {stream["resolution"]} resolution...")
 
     # finally download video :tada:
     try:
-        video = ffmpeg.input(in_stream["url"])
-        video = ffmpeg.output(video, f"{vtitle}.mp4", c="copy", v="error", y=None)
+        video = ffmpeg.input(stream["url"])
+        video = ffmpeg.output(video, f"{title}.mp4", c="copy", v="error", y=None)
         ffmpeg.run(video)
     except ffmpeg.Error:
         log(f"\nffmpeg error occurred!\tAborting...")
         return 1
-    log(f"Saved video in '{vtitle}.mp4'")
+    log(f"Saved video in '{title}.mp4'")
     return 0
+
+# automatically downloads video (without asking resolution)
+# must provide video url and wanted quality - best, average or worst
+def download_video(url: str, quality: Literal["best", "average", "worst"]) -> int:
+    vid = get_video_id(url)
+
+    vinfo, err_code = get_video_json(api_url=( get_api_url(video_id=vid) ))
+    if err_code > 0:
+        return 1
+    
+    master_url = get_master_playlist(vinfo)
+    vtitle = get_vinfo_field(vinfo, path="title")
+
+    streams, err_code = get_available_streams(master_url)
+    if err_code > 0:
+        return 1
+    
+    streams.reverse()
+
+    quality_index: int
+    if quality == "best":
+        quality_index = 0
+    elif quality == "average":
+        quality_index = int(len(streams) / 2)
+    elif quality == "worst":
+        quality_index = len(streams) - 1
+    
+    stream = streams[quality_index]
+    if download_stream(stream, vtitle) > 0:
+        return 2
+    else:
+        return 0
 
 # execute download if user launched this file directly with python
 if __name__ == "__main__":
@@ -210,7 +244,7 @@ if __name__ == "__main__":
     # init stream to download
     in_stream = streams[in_res-1]
 
-    if download_video(in_stream) > 0:
+    if download_stream(in_stream, vtitle) > 0:
         exit(2)
     else:
         exit(0)
