@@ -1,22 +1,44 @@
-import requests, re, subprocess, ffmpeg
+import requests, re, ffmpeg
 from typing import Literal
+# local
+import logger
 
 # log modes
-# i will update those sometime
-logmode_verbose = False
-logmode_debug = False
+logmode_error =     True
+logmode_warning =   True
+logmode_info =      True
+logmode_verbose =   False
+logmode_debug =     False
 
-# there will be another log functions
+def init_log_levels(error: bool = True, warning: bool = True, info: bool = True, verbose: bool = False, debug: bool = False) -> None:
+    global logmode_error, logmode_warning, logmode_info, logmode_verbose, logmode_debug
+
+    logmode_error = error
+    logmode_warning = warning
+    logmode_info = info
+    logmode_verbose = verbose
+    logmode_debug = debug
+
+# error
+def elog(text: str) -> None:
+    if logmode_error:
+        logger.log('e', text)
+# warning
+def wlog(text: str) -> None:
+    if logmode_warning:
+        logger.log('w', text)
+# info log
 def log(text: str) -> None:
-    print(text)
+    if logmode_info:
+        logger.log('i', text)
 # verbose log
 def vlog(text: str) -> None:
     if logmode_verbose:
-        print(text)
+        logger.log('o', text)
 # debug log
 def dlog(text: str) -> None:
     if logmode_debug:
-        print(text)
+        logger.log('o', text)
 
 # cut video id from url
 def get_video_id(video_url: str) -> str:
@@ -58,11 +80,11 @@ def get_video_json(api_url: str) -> tuple((any, int)):
         return (response.json(), 0)
     elif response.status_code == 404:
         # invalid link provided
-        log(f"Invalid link!")
+        elog(f"Invalid link!")
         return (None, 404)
     else:
         # something went wrong
-        log(f"Can't reach rutube API! Status code: {response.status_code}")
+        elog(f"Can't reach rutube API! Status code: {response.status_code}")
         return (None, response.status_code)
 
 # makes request to master playlist url 
@@ -111,7 +133,7 @@ def get_available_streams(master_url: str) -> tuple((dict, int)):
         return (streams, 0)
     # something is not ok
     else:
-        log(f"Can't get available streams!\tStatus code: {response.status_code}")
+        elog(f"Can't get available streams!\tStatus code: {response.status_code}")
         return (None, response.status_code)
 
 # get vinfo field. path splits by . symbol - for example, "path.to.field" 
@@ -145,7 +167,7 @@ def download_stream(stream: dict, title: str) -> int:
         video = ffmpeg.output(video, f"{title}.mp4", c="copy", v="error", y=None)
         ffmpeg.run(video)
     except ffmpeg.Error:
-        log(f"\nffmpeg error occurred!\tAborting...")
+        elog(f"\nffmpeg error occurred!\tAborting...")
         return 1
     log(f"Saved video in '{title}.mp4'")
     return 0
@@ -184,8 +206,13 @@ def download_video(url: str, quality: Literal["best", "average", "worst"]) -> in
 
 # execute download if user launched this file directly with python
 if __name__ == "__main__":
+    # init logger
+    init_log_levels(info=True, verbose=False, debug=False) # info only
+    logger.init_logger("log.log", colored_output=True)
+
     # get url from input
     in_url = input("Enter video url: ")
+    log(f"Parsing info for '{in_url}'...")
 
     # get video id first
     # vid stands for video id
@@ -217,12 +244,12 @@ if __name__ == "__main__":
         exit(1)
 
     # print available resolutions
-    log("Available resolutions:")
+    print("Available resolutions:")
     streams.reverse()
     n: int = 0
     for stream in streams:
         n += 1
-        log(f"{n}) {stream["resolution"]}")
+        print(f"{n}) {stream["resolution"]}")
     while True:
         # get resolution to download option
         try:
@@ -232,11 +259,11 @@ if __name__ == "__main__":
             else:
                 in_res = int(in_res)
         except (TypeError):
-            log(f"Option must be a number between 1 and {n}")
+            print(f"Option must be a number between 1 and {n}")
             continue
         # input number is bigger than n (last available resolution)
         if in_res > n or in_res <= 0:
-            log(f"Option must be a number between 1 and {n}")
+            print(f"Option must be a number between 1 and {n}")
             continue
 
         break
