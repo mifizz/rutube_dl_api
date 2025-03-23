@@ -1,4 +1,5 @@
-import requests, re, ffmpeg
+import requests, re, ffmpeg, urllib.request
+from PIL import Image
 from typing import Literal
 # local
 import logger
@@ -156,6 +157,20 @@ def get_vinfo_field(vinfo: dict, path: str) -> any:
 # returns master playlist url (m3u8)
 def get_master_playlist(vinfo: dict) -> str:
     return get_vinfo_field(vinfo, path="video_balancer.default")
+
+def download_thumbnail(vinfo: dict, filename: str) -> int:
+    log(f"Downloading thumbnail...")
+
+    # try to download thumbnail
+    try:
+        # get thumbnail url
+        thumb_url = get_vinfo_field(vinfo, "thumbnail_url")
+        # download it
+        urllib.request.urlretrieve(thumb_url, filename)
+    except Exception as e:
+        elog(f"{e}")
+        return 1
+    return 0
 
 # downloads provided stream, not to be confused with download_video()!
 def download_stream(stream: dict, title: str) -> int:
